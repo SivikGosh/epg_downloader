@@ -4,7 +4,7 @@ from ftplib import FTP
 
 
 def download(source, login, password):
-    """загрузка всех файлов в папку с текущей датой в общей папке EPG файлов"""
+    """Загрузка всех файлов в папку с текущей датой в общей папке EPG файлов."""
     connection = FTP(source)
     connection.login(login, password)
     files = connection.nlst()
