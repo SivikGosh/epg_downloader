@@ -4,7 +4,7 @@ from datetime import datetime
 from ftplib import FTP
 from xml.etree import ElementTree
 
-import telebot
+from telebot import TeleBot
 from dotenv import load_dotenv
 from telebot.apihelper import ApiTelegramException
 
@@ -13,15 +13,12 @@ from channels import briz, wsks
 load_dotenv()
 
 
-def downloading_files(source: str, login: str, password: str, date: datetime.date) -> None:
-    """Загрузка всех файлов в папку с текущей датой."""
+def downloading_files(source: str, login: str, password: str, bot: TeleBot) -> None:
+    """Загрузка всех файлов во временную папку."""
 
     connection = FTP(source)
     connection.login(login, password)
     files = connection.nlst()
-
-    if not os.path.exists(f'epg_files/tmp'):
-        os.makedirs(f'epg_files/tmp')
 
     for file in files:
         with open(f'epg_files/tmp/{file}', 'wb') as f:
@@ -29,40 +26,36 @@ def downloading_files(source: str, login: str, password: str, date: datetime.dat
 
     connection.quit()
 
-    print('загрузка завершена')
-    # bot = telebot.TeleBot('6401346922:AAGYIr7inOWVM3tL80UWuPC9aF9_gUl4Y0Y')
-    # bot.send_message(67471266, 'загрузка завершена', timeout=600)
+    bot.send_message(67471266, 'загрузка завершена')
 
 
-def date_checking(date: datetime.date) -> list[str]:
+def date_checking(date: datetime.date, bot: TeleBot) -> list[str]:
     """Проверка актуальности файлов."""
 
-    files = os.listdir(f'epg_files/{date}')
+    files = os.listdir(f'epg_files/tmp')
     removed_files = []
 
     for file in files:
-        tree = ElementTree.parse(f'epg_files/{date}/{file}')
+        tree = ElementTree.parse(f'epg_files/tmp/{file}')
         service = tree.find('service')
 
         try:
             last_event_start_time = service.findall('event')[-1].attrib['start-time']
             last_event_date = datetime.strptime(last_event_start_time, '%Y-%m-%d %H:%M').date()
 
-            if last_event_date < current_date:
-                os.remove(f'epg_files/{date}/{file}')
+            if last_event_date < date:
+                os.remove(f'epg_files/tmp/{file}')
                 removed_files.append(file)
 
         except AttributeError:
             pass
 
-    print('проверка завершена')
-    # bot = telebot.TeleBot('6401346922:AAGYIr7inOWVM3tL80UWuPC9aF9_gUl4Y0Y')
-    # bot.send_message(67471266, 'проверка завершена')
+    bot.send_message(67471266, 'проверка завершена')
 
     return removed_files
 
 
-def building_packages(dst_folder: str, channel_list: list[str], date: datetime.date) -> list[str]:
+def building_packages(dst_folder: str, channel_list: list[str], date: datetime.date, bot: TeleBot) -> list[str]:
     """Сборка пакетов каналов."""
 
     files_not_exist = []
@@ -74,7 +67,7 @@ def building_packages(dst_folder: str, channel_list: list[str], date: datetime.d
         except FileNotFoundError:
             pass
 
-    fresh_files = os.listdir(f'epg_files/{date}')
+    fresh_files = os.listdir(f'epg_files/tmp')
 
     for channel in channel_list:
         full_channel_name = channel.zfill(9) + '.xml'
@@ -88,13 +81,12 @@ def building_packages(dst_folder: str, channel_list: list[str], date: datetime.d
             files_not_exist.append(full_channel_name)
 
     print('сборка завершена')
-    # bot = telebot.TeleBot('6401346922:AAGYIr7inOWVM3tL80UWuPC9aF9_gUl4Y0Y')
-    # bot.send_message(67471266, 'сборка завершена')
+    bot.send_message(67471266, 'сборка завершена')
 
     return files_not_exist
 
 
-def uploading_files(source: str, login: str, password: str, folder: str) -> None:
+def uploading_files(source: str, login: str, password: str, folder: str, bot: TeleBot) -> None:
     """Загрузка файлов на карту EPG."""
 
     connection = FTP(source)
@@ -107,14 +99,12 @@ def uploading_files(source: str, login: str, password: str, folder: str) -> None
         print(f'{file} загружен')
 
     print('заливка завершена')
-    # bot = telebot.TeleBot('6401346922:AAGYIr7inOWVM3tL80UWuPC9aF9_gUl4Y0Y')
-    # bot.send_message(67471266, 'заливка завершена')
+    bot.send_message(67471266, 'заливка завершена')
 
     connection.quit()
 
 
-def report_message(not_exist, card):
-    bot = telebot.TeleBot('6401346922:AAGYIr7inOWVM3tL80UWuPC9aF9_gUl4Y0Y')
+def report_message(not_exist, card, bot: TeleBot):
     contacts = {'Markarov': 67471266, 'Susylev': 192697803, 'Bufalov': 749444404}
 
     for name, chat_id in contacts.items():
@@ -133,24 +123,27 @@ def report_message(not_exist, card):
 if __name__ == '__main__':
     url, user, passwd = os.getenv('SOURCE'), os.getenv('LOGIN'), os.getenv('PASSWORD')
     current_date = datetime.today().date()
+    tgbot = TeleBot('6401346922:AAGYIr7inOWVM3tL80UWuPC9aF9_gUl4Y0Y')
 
-    downloading_files(source='ftp.epgservice.ru', login='infokos', password='6KVy76MY', date=current_date)
-    removed_files = date_checking(date=current_date)
-    not_exist_briz = building_packages(dst_folder='Briz', channel_list=briz, date=current_date)
-    not_exist_wsks = building_packages(dst_folder='wSKS', channel_list=wsks, date=current_date)
+    downloading_files(source='ftp.epgservice.ru', login='infokos', password='6KVy76MY', bot=tgbot)
+    removed_files = date_checking(date=current_date, bot=tgbot)
+    not_exist_briz = building_packages(dst_folder='Briz', channel_list=briz, date=current_date, bot=tgbot)
+    not_exist_wsks = building_packages(dst_folder='wSKS', channel_list=wsks, date=current_date, bot=tgbot)
 
     uploading_files(
         source='10.20.3.22',
         login='target',
         password='target',
-        folder='Briz'
+        folder='Briz',
+        bot = tgbot
     )
     uploading_files(
         source='10.20.4.30',
         login='target',
         password='target',
-        folder='wSKS'
+        folder='wSKS',
+        bot = tgbot
     )
 
-    report_message(not_exist_briz, 'Бриз')
-    report_message(not_exist_wsks, 'wSKS')
+    report_message(not_exist_briz, 'Бриз', bot=tgbot)
+    report_message(not_exist_wsks, 'wSKS', bot=tgbot)
