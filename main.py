@@ -1,6 +1,6 @@
 import os
 import shutil
-from datetime import datetime
+from datetime import datetime, timedelta, time
 from ftplib import FTP
 from xml.etree import ElementTree
 
@@ -23,6 +23,7 @@ def downloading_files(source: str, login: str, password: str, bot: TeleBot) -> N
     for file in files:
         with open(f'epg_files/tmp/{file}', 'wb') as f:
             connection.retrbinary(f'RETR {file}', f.write)
+        print(file, 'загружен')
 
     connection.quit()
 
@@ -31,6 +32,8 @@ def downloading_files(source: str, login: str, password: str, bot: TeleBot) -> N
 
 def date_checking(date: datetime.date, bot: TeleBot) -> list[str]:
     """Проверка актуальности файлов."""
+
+    # TODO: test
 
     files = os.listdir(f'epg_files/tmp')
     removed_files = []
@@ -43,9 +46,10 @@ def date_checking(date: datetime.date, bot: TeleBot) -> list[str]:
             last_event_start_time = service.findall('event')[-1].attrib['start-time']
             last_event_date = datetime.strptime(last_event_start_time, '%Y-%m-%d %H:%M').date()
 
-            if last_event_date < date:
+            if last_event_date <= date:
                 os.remove(f'epg_files/tmp/{file}')
                 removed_files.append(file)
+                print(file, 'устарел')
 
         except AttributeError:
             pass
@@ -55,7 +59,7 @@ def date_checking(date: datetime.date, bot: TeleBot) -> list[str]:
     return removed_files
 
 
-def building_packages(dst_folder: str, channel_list: list[str], date: datetime.date, bot: TeleBot) -> list[str]:
+def building_packages(dst_folder: str, channel_list: list[str], bot: TeleBot) -> list[str]:
     """Сборка пакетов каналов."""
 
     files_not_exist = []
@@ -122,28 +126,33 @@ def report_message(not_exist, card, bot: TeleBot):
 
 if __name__ == '__main__':
     url, user, passwd = os.getenv('SOURCE'), os.getenv('LOGIN'), os.getenv('PASSWORD')
-    current_date = datetime.today().date()
+    tomorrow = datetime.today().date() + timedelta(days=1)
     tgbot = TeleBot('6401346922:AAGYIr7inOWVM3tL80UWuPC9aF9_gUl4Y0Y')
 
+    start_time = datetime.now()
+
     downloading_files(source='ftp.epgservice.ru', login='infokos', password='6KVy76MY', bot=tgbot)
-    removed_files = date_checking(date=current_date, bot=tgbot)
-    not_exist_briz = building_packages(dst_folder='Briz', channel_list=briz, date=current_date, bot=tgbot)
-    not_exist_wsks = building_packages(dst_folder='wSKS', channel_list=wsks, date=current_date, bot=tgbot)
+    removed_files = date_checking(date=tomorrow, bot=tgbot)
+    not_exist_briz = building_packages(dst_folder='Briz', channel_list=briz, bot=tgbot)
+    not_exist_wsks = building_packages(dst_folder='wSKS', channel_list=wsks, bot=tgbot)
 
     uploading_files(
         source='10.20.3.22',
         login='target',
         password='target',
         folder='Briz',
-        bot = tgbot
+        bot=tgbot
     )
     uploading_files(
         source='10.20.4.30',
         login='target',
         password='target',
         folder='wSKS',
-        bot = tgbot
+        bot=tgbot
     )
 
     report_message(not_exist_briz, 'Бриз', bot=tgbot)
     report_message(not_exist_wsks, 'wSKS', bot=tgbot)
+
+    finish_time = datetime.now() - start_time
+    print(finish_time)

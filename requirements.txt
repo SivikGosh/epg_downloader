@@ -1,5 +1,6 @@
 certifi==2023.7.22
 charset-normalizer==3.3.2
+coverage==7.3.2
 idna==3.4
 pyTelegramBotAPI==4.14.0
 python-dotenv==1.0.0
