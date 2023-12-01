@@ -13,7 +13,7 @@ from channels import briz, wsks
 load_dotenv()
 
 
-def downloading_files(source: str, login: str, password: str, bot: TeleBot) -> None:
+def downloading_files(source: str, login: str, password: str) -> None:
     """Загрузка всех файлов во временную папку."""
 
     connection = FTP(source)
@@ -23,20 +23,14 @@ def downloading_files(source: str, login: str, password: str, bot: TeleBot) -> N
     for file in files:
         with open(f'epg_files/tmp/{file}', 'wb') as f:
             connection.retrbinary(f'RETR {file}', f.write)
-        print(file, 'загружен')
 
     connection.quit()
 
-    bot.send_message(67471266, 'загрузка завершена')
 
-
-def date_checking(date: datetime.date, bot: TeleBot) -> list[str]:
+def date_checking(date: datetime.date) -> None:
     """Проверка актуальности файлов."""
 
-    # TODO: test
-
     files = os.listdir(f'epg_files/tmp')
-    removed_files = []
 
     for file in files:
         tree = ElementTree.parse(f'epg_files/tmp/{file}')
@@ -48,21 +42,15 @@ def date_checking(date: datetime.date, bot: TeleBot) -> list[str]:
 
             if last_event_date <= date:
                 os.remove(f'epg_files/tmp/{file}')
-                removed_files.append(file)
-                print(file, 'устарел')
 
         except AttributeError:
             pass
 
-    bot.send_message(67471266, 'проверка завершена')
 
-    return removed_files
+def building_package(dst_folder: str, channel_list: list[str]) -> list[str]:
+    """Сборка пакета каналов."""
 
-
-def building_packages(dst_folder: str, channel_list: list[str], bot: TeleBot) -> list[str]:
-    """Сборка пакетов каналов."""
-
-    files_not_exist = []
+    files_that_not_exist = []
     files_for_remove = os.listdir(f'epg_files/{dst_folder}')
 
     for file in files_for_remove:
@@ -71,26 +59,23 @@ def building_packages(dst_folder: str, channel_list: list[str], bot: TeleBot) ->
         except FileNotFoundError:
             pass
 
-    fresh_files = os.listdir(f'epg_files/tmp')
+    source_files = os.listdir(f'epg_files/tmp')
 
     for channel in channel_list:
         full_channel_name = channel.zfill(9) + '.xml'
 
-        if full_channel_name in fresh_files:
+        if full_channel_name in source_files:
             shutil.copy(
                 f'epg_files/tmp/{full_channel_name}',
                 f'epg_files/{dst_folder}/{full_channel_name}'
             )
         else:
-            files_not_exist.append(full_channel_name)
+            files_that_not_exist.append(full_channel_name)
 
-    print('сборка завершена')
-    bot.send_message(67471266, 'сборка завершена')
-
-    return files_not_exist
+    return files_that_not_exist
 
 
-def uploading_files(source: str, login: str, password: str, folder: str, bot: TeleBot) -> None:
+def uploading_files(source: str, login: str, password: str, folder: str) -> None:
     """Загрузка файлов на карту EPG."""
 
     connection = FTP(source)
@@ -100,59 +85,43 @@ def uploading_files(source: str, login: str, password: str, folder: str, bot: Te
     for file in new_files:
         with open(f'epg_files/{folder}/{file}', 'rb') as f:
             connection.storbinary(f'STOR tffs0/epg_file/{file}', f)
-        print(f'{file} загружен')
-
-    print('заливка завершена')
-    bot.send_message(67471266, 'заливка завершена')
 
     connection.quit()
 
 
-def report_message(not_exist, card, bot: TeleBot):
-    contacts = {'Markarov': 67471266, 'Susylev': 192697803, 'Bufalov': 749444404}
+def report_message(not_exist: list[str], card_name: str, bot: TeleBot, *contacts: str) -> None:
 
-    for name, chat_id in contacts.items():
+    for contact in contacts:
         if len(not_exist) > 0:
-            try:
-                bot.send_message(chat_id, not_exist)
-            except ApiTelegramException:
-                bot.send_message(contacts['Markarov'], f'Данные контакту {name} не отправлены.')
+            for file in not_exist:
+                try:
+                    bot.send_message(contact, file)
+                except ApiTelegramException:
+                    pass
         else:
             try:
-                bot.send_message(chat_id, f'файлы для {card} обновлены')
+                bot.send_message(contact, f'файлы для {card_name} обновлены')
             except ApiTelegramException:
-                bot.send_message(contacts['Markarov'], f'Данные контакту {name} не отправлены.')
+                pass
 
 
 if __name__ == '__main__':
-    url, user, passwd = os.getenv('SOURCE'), os.getenv('LOGIN'), os.getenv('PASSWORD')
+    src_url, src_login, src_password = os.getenv('SOURCE'), os.getenv('LOGIN'), os.getenv('PASSWORD')
+    bufalov, markarov, susylev = os.getenv('BUFALOV_ID'), os.getenv('MARKAROV_ID'), os.getenv('SUSYLEV_ID')
+    token = os.getenv('TG_TOKEN')
+    briz_url, wsks_url = os.getenv('BRIZ_IP'), os.getenv('WSKS_IP')
+    epg_login, epg_password = os.getenv('EPG_LOGIN'), os.getenv('EPG_PASSWORD')
+
     tomorrow = datetime.today().date() + timedelta(days=1)
-    tgbot = TeleBot('6401346922:AAGYIr7inOWVM3tL80UWuPC9aF9_gUl4Y0Y')
+    tgbot = TeleBot(token)
 
-    start_time = datetime.now()
+    downloading_files(source=src_url, login=src_login, password=src_password)
+    date_checking(date=tomorrow)
+    not_exist_briz = building_package(dst_folder='Briz', channel_list=briz, bot=tgbot)
+    not_exist_wsks = building_package(dst_folder='wSKS', channel_list=wsks, bot=tgbot)
 
-    downloading_files(source='ftp.epgservice.ru', login='infokos', password='6KVy76MY', bot=tgbot)
-    removed_files = date_checking(date=tomorrow, bot=tgbot)
-    not_exist_briz = building_packages(dst_folder='Briz', channel_list=briz, bot=tgbot)
-    not_exist_wsks = building_packages(dst_folder='wSKS', channel_list=wsks, bot=tgbot)
+    uploading_files(source=briz_url, login=epg_login, password=epg_password, folder='Briz', bot=tgbot)
+    uploading_files(source=wsks_url, login=epg_login, password=epg_password, folder='wSKS', bot=tgbot)
 
-    uploading_files(
-        source='10.20.3.22',
-        login='target',
-        password='target',
-        folder='Briz',
-        bot=tgbot
-    )
-    uploading_files(
-        source='10.20.4.30',
-        login='target',
-        password='target',
-        folder='wSKS',
-        bot=tgbot
-    )
-
-    report_message(not_exist_briz, 'Бриз', bot=tgbot)
-    report_message(not_exist_wsks, 'wSKS', bot=tgbot)
-
-    finish_time = datetime.now() - start_time
-    print(finish_time)
+    report_message(not_exist_briz, 'Бриз', tgbot, bufalov, markarov, susylev)
+    report_message(not_exist_wsks, 'wSKS', tgbot, bufalov, markarov, susylev)
