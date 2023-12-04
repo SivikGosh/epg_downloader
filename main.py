@@ -7,22 +7,26 @@ from xml.etree import ElementTree
 from telebot import TeleBot
 from dotenv import load_dotenv
 from telebot.apihelper import ApiTelegramException
+import re
 
 from channels import briz, wsks
 
 load_dotenv()
 
 
-def downloading_files(source: str, login: str, password: str) -> None:
+def downloading_files(source: str, login: str, password: str, path: str) -> None:
     """Загрузка всех файлов во временную папку."""
 
     connection = FTP(source)
     connection.login(login, password)
-    files = connection.nlst()
+    files = connection.nlst(path)
 
     for file in files:
         with open(f'epg_files/tmp/{file}', 'wb') as f:
             connection.retrbinary(f'RETR {file}', f.write)
+
+        print(file, 'загружен')
+    print('файлы загружены')
 
     connection.quit()
 
@@ -89,9 +93,9 @@ def uploading_files(source: str, login: str, password: str, folder: str) -> None
     connection.quit()
 
 
-def report_message(not_exist: list[str], card_name: str, bot: TeleBot, *contacts: str) -> None:
+def report_message(not_exist: list[str], card_name: str, bot: TeleBot, to: list[str]) -> None:
 
-    for contact in contacts:
+    for contact in to:
         if len(not_exist) > 0:
             for file in not_exist:
                 try:
@@ -105,23 +109,33 @@ def report_message(not_exist: list[str], card_name: str, bot: TeleBot, *contacts
                 pass
 
 
+def get_contacts():
+    """Получение id получателей сообщения."""
+    ids = []
+    for var in os.environ:
+        if re.match(r'^TG_CONTACT_[0-9]+$', var):
+            ids.append(os.getenv(var))
+    return ids
+
+
 if __name__ == '__main__':
-    src_url, src_login, src_password = os.getenv('SOURCE'), os.getenv('LOGIN'), os.getenv('PASSWORD')
-    bufalov, markarov, susylev = os.getenv('BUFALOV_ID'), os.getenv('MARKAROV_ID'), os.getenv('SUSYLEV_ID')
+    contacts = get_contacts()
     token = os.getenv('TG_TOKEN')
+
+    src_url, src_login, src_password = os.getenv('SOURCE'), os.getenv('LOGIN'), os.getenv('PASSWORD')
     briz_url, wsks_url = os.getenv('BRIZ_IP'), os.getenv('WSKS_IP')
     epg_login, epg_password = os.getenv('EPG_LOGIN'), os.getenv('EPG_PASSWORD')
 
     tomorrow = datetime.today().date() + timedelta(1)
     tgbot = TeleBot(token)
 
-    downloading_files(src_url, src_login, src_password)
+    downloading_files(src_url, src_login, src_password, '/')
     date_checking(tomorrow)
-    not_exist_briz = building_package('Briz', briz, tgbot)
-    not_exist_wsks = building_package('wSKS', wsks, tgbot)
+    not_exist_briz = building_package('Briz', briz)
+    not_exist_wsks = building_package('wSKS', wsks)
 
     uploading_files(briz_url, epg_login, epg_password, 'Briz', tgbot)
     uploading_files(wsks_url, epg_login, epg_password, 'wSKS', tgbot)
 
-    report_message(not_exist_briz, 'Бриз', tgbot, bufalov, markarov, susylev)
-    report_message(not_exist_wsks, 'wSKS', tgbot, bufalov, markarov, susylev)
+    report_message(not_exist_briz, 'Бриз', tgbot, contacts)
+    report_message(not_exist_wsks, 'wSKS', tgbot, contacts)
