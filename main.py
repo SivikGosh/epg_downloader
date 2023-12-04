@@ -112,16 +112,16 @@ if __name__ == '__main__':
     briz_url, wsks_url = os.getenv('BRIZ_IP'), os.getenv('WSKS_IP')
     epg_login, epg_password = os.getenv('EPG_LOGIN'), os.getenv('EPG_PASSWORD')
 
-    tomorrow = datetime.today().date() + timedelta(days=1)
+    tomorrow = datetime.today().date() + timedelta(1)
     tgbot = TeleBot(token)
 
-    downloading_files(source=src_url, login=src_login, password=src_password)
-    date_checking(date=tomorrow)
-    not_exist_briz = building_package(dst_folder='Briz', channel_list=briz, bot=tgbot)
-    not_exist_wsks = building_package(dst_folder='wSKS', channel_list=wsks, bot=tgbot)
+    downloading_files(src_url, src_login, src_password)
+    date_checking(tomorrow)
+    not_exist_briz = building_package('Briz', briz, tgbot)
+    not_exist_wsks = building_package('wSKS', wsks, tgbot)
 
-    uploading_files(source=briz_url, login=epg_login, password=epg_password, folder='Briz', bot=tgbot)
-    uploading_files(source=wsks_url, login=epg_login, password=epg_password, folder='wSKS', bot=tgbot)
+    uploading_files(briz_url, epg_login, epg_password, 'Briz', tgbot)
+    uploading_files(wsks_url, epg_login, epg_password, 'wSKS', tgbot)
 
     report_message(not_exist_briz, 'Бриз', tgbot, bufalov, markarov, susylev)
     report_message(not_exist_wsks, 'wSKS', tgbot, bufalov, markarov, susylev)
