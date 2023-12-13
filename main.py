@@ -8,10 +8,12 @@ from telebot import TeleBot
 from dotenv import load_dotenv
 from telebot.apihelper import ApiTelegramException
 import re
+import sys
+import argparse
 
 from channels import briz, wsks
 
-load_dotenv()
+load_dotenv()1
 
 
 def downloading_files(source: str, login: str, password: str, path: str) -> None:
@@ -120,22 +122,21 @@ def get_contacts():
 
 if __name__ == '__main__':
     contacts = get_contacts()
-    token = os.getenv('TG_TOKEN')
+    bot = TeleBot(os.getenv('TG_TOKEN'))
 
     src_url, src_login, src_password = os.getenv('SOURCE'), os.getenv('LOGIN'), os.getenv('PASSWORD')
     briz_url, wsks_url = os.getenv('BRIZ_IP'), os.getenv('WSKS_IP')
     epg_login, epg_password = os.getenv('EPG_LOGIN'), os.getenv('EPG_PASSWORD')
 
     tomorrow = datetime.today().date() + timedelta(1)
-    tgbot = TeleBot(token)
 
     downloading_files(src_url, src_login, src_password, '/')
     date_checking(tomorrow)
     not_exist_briz = building_package('Briz', briz)
     not_exist_wsks = building_package('wSKS', wsks)
 
-    uploading_files(briz_url, epg_login, epg_password, 'Briz', tgbot)
-    uploading_files(wsks_url, epg_login, epg_password, 'wSKS', tgbot)
+    uploading_files(briz_url, epg_login, epg_password, 'Briz', bot)
+    uploading_files(wsks_url, epg_login, epg_password, 'wSKS', bot)
 
-    report_message(not_exist_briz, 'Бриз', tgbot, contacts)
-    report_message(not_exist_wsks, 'wSKS', tgbot, contacts)
+    report_message(not_exist_briz, 'Бриз', bot, contacts)
+    report_message(not_exist_wsks, 'wSKS', bot, contacts)
