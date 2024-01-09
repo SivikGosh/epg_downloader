@@ -13,7 +13,7 @@ import argparse
 
 from channels import briz, wsks
 
-load_dotenv()1
+load_dotenv()
 
 
 def downloading_files(source: str, login: str, password: str, path: str) -> None:
