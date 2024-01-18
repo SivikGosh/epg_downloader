@@ -1,25 +1,23 @@
 import os
+import re
 import shutil
 from datetime import datetime, timedelta
 from ftplib import FTP
 from xml.etree import ElementTree
 
-from telebot import TeleBot
 from dotenv import load_dotenv
+from telebot import TeleBot
 from telebot.apihelper import ApiTelegramException
-import re
-import sys
-import argparse
 
 from channels import briz, wsks
 
 load_dotenv()
 
 
-def downloading_files(source: str, login: str, password: str, path: str) -> None:
-    """Загрузка всех файлов во временную папку."""
+def downloading_files(src: str, login: str, password: str, path: str) -> None:
+    '''Загрузка всех файлов во временную папку.'''
 
-    connection = FTP(source)
+    connection = FTP(src)
     connection.login(login, password)
     files = connection.nlst(path)
 
@@ -34,19 +32,19 @@ def downloading_files(source: str, login: str, password: str, path: str) -> None
 
 
 def date_checking(date: datetime.date) -> None:
-    """Проверка актуальности файлов."""
+    '''Проверка актуальности файлов.'''
 
-    files = os.listdir(f'epg_files/tmp')
+    files = os.listdir('epg_files/tmp')
 
     for file in files:
         tree = ElementTree.parse(f'epg_files/tmp/{file}')
         service = tree.find('service')
 
         try:
-            last_event_start_time = service.findall('event')[-1].attrib['start-time']
-            last_event_date = datetime.strptime(last_event_start_time, '%Y-%m-%d %H:%M').date()
+            start_time = service.findall('event')[-1].attrib['start-time']
+            start_date = datetime.strptime(start_time, '%Y-%m-%d %H:%M').date()
 
-            if last_event_date <= date:
+            if start_date <= date:
                 os.remove(f'epg_files/tmp/{file}')
 
         except AttributeError:
@@ -54,7 +52,7 @@ def date_checking(date: datetime.date) -> None:
 
 
 def building_package(dst_folder: str, channel_list: list[str]) -> list[str]:
-    """Сборка пакета каналов."""
+    '''Сборка пакета каналов.'''
 
     files_that_not_exist = []
     files_for_remove = os.listdir(f'epg_files/{dst_folder}')
@@ -65,7 +63,7 @@ def building_package(dst_folder: str, channel_list: list[str]) -> list[str]:
         except FileNotFoundError:
             pass
 
-    source_files = os.listdir(f'epg_files/tmp')
+    source_files = os.listdir('epg_files/tmp')
 
     for channel in channel_list:
         full_channel_name = channel.zfill(9) + '.xml'
@@ -73,7 +71,7 @@ def building_package(dst_folder: str, channel_list: list[str]) -> list[str]:
         if full_channel_name in source_files:
             shutil.copy(
                 f'epg_files/tmp/{full_channel_name}',
-                f'epg_files/{dst_folder}/{full_channel_name}'
+                f'epg_files/{dst_folder}/{full_channel_name}',
             )
         else:
             files_that_not_exist.append(full_channel_name)
@@ -81,10 +79,10 @@ def building_package(dst_folder: str, channel_list: list[str]) -> list[str]:
     return files_that_not_exist
 
 
-def uploading_files(source: str, login: str, password: str, folder: str) -> None:
-    """Загрузка файлов на карту EPG."""
+def uploading_files(src: str, login: str, password: str, folder: str) -> None:
+    '''Загрузка файлов на карту EPG.'''
 
-    connection = FTP(source)
+    connection = FTP(src)
     connection.login(login, password)
     new_files = os.listdir(f'epg_files/{folder}')
 
@@ -95,8 +93,9 @@ def uploading_files(source: str, login: str, password: str, folder: str) -> None
     connection.quit()
 
 
-def report_message(not_exist: list[str], card_name: str, bot: TeleBot, to: list[str]) -> None:
-
+def report_message(
+    not_exist: list[str], card_name: str, bot: TeleBot, to: list[str]
+) -> None:
     for contact in to:
         if len(not_exist) > 0:
             for file in not_exist:
@@ -112,7 +111,7 @@ def report_message(not_exist: list[str], card_name: str, bot: TeleBot, to: list[
 
 
 def get_contacts():
-    """Получение id получателей сообщения."""
+    '''Получение id получателей сообщения.'''
     ids = []
     for var in os.environ:
         if re.match(r'^TG_CONTACT_[0-9]+$', var):
@@ -124,7 +123,11 @@ if __name__ == '__main__':
     contacts = get_contacts()
     bot = TeleBot(os.getenv('TG_TOKEN'))
 
-    src_url, src_login, src_password = os.getenv('SOURCE'), os.getenv('LOGIN'), os.getenv('PASSWORD')
+    src_url, src_login, src_password = (
+        os.getenv('SOURCE'),
+        os.getenv('LOGIN'),
+        os.getenv('PASSWORD'),
+    )
     briz_url, wsks_url = os.getenv('BRIZ_IP'), os.getenv('WSKS_IP')
     epg_login, epg_password = os.getenv('EPG_LOGIN'), os.getenv('EPG_PASSWORD')
 
@@ -135,8 +138,13 @@ if __name__ == '__main__':
     not_exist_briz = building_package('Briz', briz)
     not_exist_wsks = building_package('wSKS', wsks)
 
-    uploading_files(briz_url, epg_login, epg_password, 'Briz', bot)
-    uploading_files(wsks_url, epg_login, epg_password, 'wSKS', bot)
+    uploading_files(briz_url, epg_login, epg_password, 'Briz')
+    uploading_files(wsks_url, epg_login, epg_password, 'wSKS')
 
     report_message(not_exist_briz, 'Бриз', bot, contacts)
     report_message(not_exist_wsks, 'wSKS', bot, contacts)
+
+    '''
+    # TODO распарсить TV_Pack
+    # TODO добавить очистку папок Briz, wSKS, tmp
+    '''
