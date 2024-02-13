@@ -161,4 +161,4 @@ cython_debug/
 
 # downloaded EPG files
 !epg_files
-epg_files/*/
+.vscode
