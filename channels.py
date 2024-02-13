@@ -34,3 +34,11 @@ wsks = [
     '4534', '4607', '4617', '4710', '5279', '6364', '7425', '8000', '8052',
     '8065', '8137', '8143', '8144', '8334', '8379', '8655'
 ]
+
+
+# import xml.etree.ElementTree as ET
+
+# tree = ET.parse('TV_Pack.xml')
+# root = tree.getroot()
+
+# print(dir(root))

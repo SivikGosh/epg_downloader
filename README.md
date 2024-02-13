@@ -8,4 +8,4 @@ Infocos EPG downloader.
 
 # запуск программы в docker-контейнере:
 
-- docker run -d 'имя контейнера' python3 main.py
+- docker run --rm 'image_name' python3 main.py

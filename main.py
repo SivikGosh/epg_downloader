@@ -93,19 +93,17 @@ def uploading_files(src: str, login: str, password: str, folder: str) -> None:
     connection.quit()
 
 
-def report_message(
-    not_exist: list[str], card_name: str, bot: TeleBot, to: list[str]
-) -> None:
+def report(files: list[str], dest: str, bot: TeleBot, to: list[str]) -> None:
     for contact in to:
-        if len(not_exist) > 0:
-            for file in not_exist:
+        if len(files) > 0:
+            for file in files:
                 try:
                     bot.send_message(contact, file)
                 except ApiTelegramException:
                     pass
         else:
             try:
-                bot.send_message(contact, f'файлы для {card_name} обновлены')
+                bot.send_message(contact, f'файлы для {dest} обновлены')
             except ApiTelegramException:
                 pass
 
@@ -141,10 +139,9 @@ if __name__ == '__main__':
     uploading_files(briz_url, epg_login, epg_password, 'Briz')
     uploading_files(wsks_url, epg_login, epg_password, 'wSKS')
 
-    report_message(not_exist_briz, 'Бриз', bot, contacts)
-    report_message(not_exist_wsks, 'wSKS', bot, contacts)
+    report(not_exist_briz, 'Бриз', bot, contacts)
+    report(not_exist_wsks, 'wSKS', bot, contacts)
 
     '''
     # TODO распарсить TV_Pack
-    # TODO добавить очистку папок Briz, wSKS, tmp
     '''
